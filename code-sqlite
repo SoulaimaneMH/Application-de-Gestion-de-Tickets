@@ -1,5 +1,7 @@
 import sqlite3
+
 DB_NAME = "incident_desk.db"
+
 def get_connection():
     conn = sqlite3.connect(DB_NAME)
     conn.execute("PRAGMA foreign_keys = ON;")
@@ -41,17 +43,24 @@ def init_db():
     conn.commit()
     conn.close()
 
-def add_department(name, description):
+def seed_initial_data():
     conn = get_connection()
     cursor = conn.cursor()
-    cursor.execute("INSERT INTO Department (Name, Description) VALUES (?, ?)", (name, description))
-    conn.commit()
-    conn.close()
 
-def add_employee(name, department_id):
-    conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("INSERT INTO Employee (Name, DepartmentID) VALUES (?, ?)", (name, department_id))
+    departments = [
+        ("finance", "Finance Department"),
+        ("IT", "Information Technology Department"),
+        ("sales", "Sales Department")
+    ]
+    cursor.executemany("INSERT INTO Department (Name, Description) VALUES (?, ?)", departments)
+
+    employees = [
+        ("wyam", 1),
+        ("mohamed Amine", 2),
+        ("Soulaimane", 3)
+    ]
+    cursor.executemany("INSERT INTO Employee (Name, DepartmentID) VALUES (?, ?)", employees)
+
     conn.commit()
     conn.close()
 
@@ -93,6 +102,7 @@ def get_all_tickets():
     rows = cursor.fetchall()
     conn.close()
     return rows
+
 def get_tickets_by_status(status):
     conn = get_connection()
     cursor = conn.cursor()
@@ -118,6 +128,7 @@ def get_status_counts():
     rows = cursor.fetchall()
     conn.close()
     return dict(rows)
+
 def update_ticket_status(ticket_id, new_status):
     conn = get_connection()
     cursor = conn.cursor()
@@ -127,3 +138,4 @@ def update_ticket_status(ticket_id, new_status):
 
 if __name__ == "__main__":
     init_db()
+    seed_initial_data()
