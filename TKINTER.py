@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 import ORM
 
-MANAGER_ID = "R150193"  # Peter's ID
+MANAGER_ID = "R150193"  
 
 
 class LoginWindow:
@@ -42,7 +42,7 @@ class LoginWindow:
 class Dashboard:
     def __init__(self, root, current_user):
         self.root = root
-        self.current_user = current_user  # (ID, Name, DepartmentID, DeptName)
+        self.current_user = current_user 
         self.is_manager = (current_user[0] == MANAGER_ID)
 
         self.root.title(f"Dashboard - {current_user[1]}")
@@ -56,12 +56,12 @@ class Dashboard:
         self.notebook = ttk.Notebook(root)
         self.notebook.pack(fill="both", expand=True, padx=5, pady=5)
 
-        # Tickets list tab
+        
         self.tab_tickets = ttk.Frame(self.notebook)
         self.notebook.add(self.tab_tickets, text="Tickets")
         self.setup_tickets_tab()
 
-        # Create ticket tab
+        
         if not self.is_manager:
             self.tab_create = ttk.Frame(self.notebook)
             self.notebook.add(self.tab_create, text="New Ticket")
@@ -78,10 +78,10 @@ class Dashboard:
             self.tree.column(col, width=130)
         self.tree.pack(fill="both", expand=True, pady=5)
 
-        # Bind double click to open detailed ticket view
+        
         self.tree.bind("<Double-1>", self.open_ticket_details)
 
-        # Status Update Panel (Only for Peter)
+        
         if self.is_manager:
             act_frame = ttk.Frame(frame, padding=5)
             act_frame.pack(fill="x")
@@ -108,7 +108,7 @@ class Dashboard:
         ticket_data = self.tree.item(selected[0], "values")
         ticket_id, description, creator, department, status = ticket_data
 
-        # Create a clean popup window for ticket details
+        
         detail_win = tk.Toplevel(self.root)
         detail_win.title(f"Ticket #{ticket_id} Details")
         detail_win.geometry("450x320")
@@ -117,7 +117,7 @@ class Dashboard:
         padding_frame = ttk.Frame(detail_win, padding=15)
         padding_frame.pack(fill="both", expand=True)
 
-        # Header info
+        
         info_frame = ttk.Frame(padding_frame)
         info_frame.pack(fill="x", pady=5)
 
@@ -129,13 +129,12 @@ class Dashboard:
 
         ttk.Separator(padding_frame, orient="horizontal").pack(fill="x", pady=10)
 
-        # Description Section
         ttk.Label(padding_frame, text="Description:", font=("Arial", 10, "bold")).pack(anchor="w", pady=2)
 
         desc_text = tk.Text(padding_frame, wrap="word", height=8, font=("Arial", 10))
         desc_text.pack(fill="both", expand=True, pady=5)
         desc_text.insert("1.0", description)
-        desc_text.config(state="disabled")  # Read-only nicely styled
+        desc_text.config(state="disabled")  
 
         ttk.Button(padding_frame, text="Close", command=detail_win.destroy).pack(pady=5)
 
