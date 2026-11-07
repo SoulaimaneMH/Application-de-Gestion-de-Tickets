@@ -63,7 +63,7 @@ def seed_initial_data():
             ("R150190", "wiam", 1),            # Finance
             ("R150191", "mohamed Amine", 2),   # IT
             ("R150192", "Soulaimane", 3),      # Sales
-            ("R150193", "Peter", 4)            # Management (Manager)
+            ("R150193", "Prof Hain", 4)        # Management (Manager)
         ]
         cursor.executemany("INSERT INTO Employee (ID, Name, DepartmentID) VALUES (?, ?, ?)", employees)
 
