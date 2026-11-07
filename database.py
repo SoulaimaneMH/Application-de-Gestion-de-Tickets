@@ -1,0 +1,169 @@
+import sqlite3
+
+DB_NAME = "incident_desk.db"
+
+def get_connection():
+    conn = sqlite3.connect(DB_NAME)
+    conn.execute("PRAGMA foreign_keys = ON;")
+    return conn
+
+def init_db():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Department (
+            ID INTEGER PRIMARY KEY AUTOINCREMENT,
+            Name TEXT NOT NULL,
+            Description TEXT
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Employee (
+            ID TEXT PRIMARY KEY,
+            Name TEXT NOT NULL,
+            DepartmentID INTEGER,
+            FOREIGN KEY (DepartmentID) REFERENCES Department(ID) ON DELETE SET NULL
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS Ticket (
+            ID INTEGER PRIMARY KEY AUTOINCREMENT,
+            Description TEXT NOT NULL,
+            CreatorID TEXT,
+            TargetDepartmentID INTEGER,
+            Status TEXT CHECK(Status IN ('Open', 'In treatment', 'Done', 'Canceled')) DEFAULT 'Open',
+            FOREIGN KEY (CreatorID) REFERENCES Employee(ID) ON DELETE SET NULL,
+            FOREIGN KEY (TargetDepartmentID) REFERENCES Department(ID) ON DELETE SET NULL
+        )
+    """)
+
+    conn.commit()
+    conn.close()
+
+def seed_initial_data():
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    cursor.execute("SELECT COUNT(*) FROM Department")
+    if cursor.fetchone()[0] == 0:
+        departments = [
+            ("finance", "Finance Department"),
+            ("IT", "Information Technology Department"),
+            ("sales", "Sales Department"),
+            ("Management", "Management Department")
+        ]
+        cursor.executemany("INSERT INTO Department (Name, Description) VALUES (?, ?)", departments)
+
+    cursor.execute("SELECT COUNT(*) FROM Employee")
+    if cursor.fetchone()[0] == 0:
+        employees = [
+            ("R150190", "wyam", 1),            # Finance
+            ("R150191", "mohamed Amine", 2),   # IT
+            ("R150192", "Soulaimane", 3),      # Sales
+            ("R150193", "Peter", 4)            # Management (Manager)
+        ]
+        cursor.executemany("INSERT INTO Employee (ID, Name, DepartmentID) VALUES (?, ?, ?)", employees)
+
+    conn.commit()
+    conn.close()
+
+def authentifier(employee_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT e.ID, e.Name, e.DepartmentID, d.Name as DeptName 
+        FROM Employee e
+        LEFT JOIN Department d ON e.DepartmentID = d.ID
+        WHERE e.ID = ?
+    """, (employee_id,))
+    user = cursor.fetchone()
+    conn.close()
+    return user
+
+def create_ticket(description, creator_id, target_department_id, status='Open'):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO Ticket (Description, CreatorID, TargetDepartmentID, Status)
+        VALUES (?, ?, ?, ?)
+    """, (description, creator_id, target_department_id, status))
+    conn.commit()
+    conn.close()
+
+def get_all_departments():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT ID, Name, Description FROM Department")
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_all_tickets():
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT t.ID, t.Description, e.Name as Creator, d.Name as TargetDepartment, t.Status
+        FROM Ticket t
+        LEFT JOIN Employee e ON t.CreatorID = e.ID
+        LEFT JOIN Department d ON t.TargetDepartmentID = d.ID
+    """)
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def get_tickets_by_status(status):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT t.ID, t.Description, e.Name as Creator, d.Name as TargetDepartment, t.Status
+        FROM Ticket t
+        LEFT JOIN Employee e ON t.CreatorID = e.ID
+        LEFT JOIN Department d ON t.TargetDepartmentID = d.ID
+        WHERE t.Status = ?
+    """, (status,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def count_by_status(creator_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT Status, COUNT(*)
+        FROM Ticket
+        WHERE CreatorID = ?
+        GROUP BY Status
+    """, (creator_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return dict(rows)
+
+def get_my_tickets(creator_id):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT t.ID, t.Description, e.Name as Creator,
+               d.Name as TargetDepartment, t.Status
+        FROM Ticket t
+        LEFT JOIN Employee e ON t.CreatorID = e.ID
+        LEFT JOIN Department d ON t.TargetDepartmentID = d.ID
+        WHERE t.CreatorID = ?
+        ORDER BY t.ID DESC
+    """, (creator_id,))
+    rows = cursor.fetchall()
+    conn.close()
+    return rows
+
+def update_ticket_status(ticket_id, new_status):
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE Ticket SET Status = ? WHERE ID = ?", (new_status, ticket_id))
+    conn.commit()
+    conn.close()
+
+if __name__ == "__main__":
+    init_db()
+    seed_initial_data()
