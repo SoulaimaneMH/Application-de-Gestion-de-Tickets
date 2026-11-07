@@ -11,6 +11,8 @@ class App(tk.Tk):
         super().__init__()
         self.title("IncidentDesk")
         self.user = None
+        db.init_db()
+        db.seed_initial_data()
         self.show_login()
     def clear(self):
         for w in self.winfo_children():
@@ -30,15 +32,20 @@ class App(tk.Tk):
                     command=self.login).pack(fill="x",pady=10)
     def login(self):
         value = self.entry_id.get().strip()
-        if not value.isdigit():
+        if not value:
             messagebox.showwarning("Attention",
                                     "Identifiant invalide")
             return
-        user = db.check_login(int(value))
-        if user is None :
+        user_row = db.authentifier(value)
+        if user_row is None:
             messagebox.showerror("Erreur", "Employe introuvable.")
             return
-        self.user = user
+        self.user = {
+            "ID": user_row[0],
+            "Name": user_row[1],
+            "DepartmentID": user_row[2],
+            "DeptName": user_row[3],
+        }
         self.show_dashboard()
     def logout(self):
         self.user = None
@@ -110,16 +117,6 @@ class App(tk.Tk):
             db.get_my_tickets(self.user["ID"])[:5],
         )
  
-
-
-
-
-
-
-
-
-
-
 
 
 if __name__ == "__main__":
