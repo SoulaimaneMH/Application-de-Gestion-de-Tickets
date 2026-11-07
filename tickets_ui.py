@@ -1,8 +1,8 @@
 import tkinter as tk
-from tkinter import messagebox, ttk
-
+from tkinter import ttk, messagebox
 import database as db
 
+TITRE = ("Viga regular", 18, "bold")
 
 LABELS = {
     "Open": "Ouvert",
@@ -10,320 +10,113 @@ LABELS = {
     "Done": "Terminé",
     "Canceled": "Annulé",
 }
+REVERSE = {v: k for k, v in LABELS.items()}
 
-LINE = "#C8D4E3"
-ROW = 30
-FOND = "#F5F8FC"
-MARINE = "#0F2A5C"
-B = "#1451A5"
-BORDURE = "#C9D6EA"
+class TicketTable(ttk.Treeview):
+    COLS = ("ID", "Description", "Créateur", "Département", "Statut")
+    WIDTHS = (50, 380, 120, 130, 110)
 
+    def __init__(self, parent):
+        super().__init__(parent, columns=self.COLS, show="headings")
+        for col, w in zip(self.COLS, self.WIDTHS):
+            self.heading(col, text=col)
+            self.column(col, width=w, anchor="w", stretch=(col == "Description"))
 
-def clear(parent):
-    for widget in parent.winfo_children():
-        widget.destroy()
-
-
-def _ticket_values(ticket, show_creator=True):
-    values = [
-        ticket[0],
-        ticket[1],
-        ticket[3] or "",
-        LABELS.get(ticket[4], ticket[4]),
-    ]
-    if show_creator:
-        values.append(ticket[2] or "")
-    return values
+    def load(self, rows):
+        self.delete(*self.get_children())
+        for r in rows:
+            self.insert("", "end", values=(r[0], r[1], r[2], r[3], LABELS.get(r[4], r[4])))
+        self.configure(height=min(max(len(rows), 1), 12))
 
 
-class TicketTable(ttk.Frame):
-    def __init__(self, parent, tickets, show_creator=True, rows=8):
-        super().__init__(parent)
-        ttk.Style().configure("Treeview", rowheight=ROW)
-        self.columns = ["ID", "Description", "Département", "Statut"]
-        if show_creator:
-            self.columns.append("Créateur")
-
-        self.tree = ttk.Treeview(
-            self,
-            columns=self.columns,
-            show="headings",
-            height=max(len(tickets), rows),
-        )
-        self.tree.pack(fill="both", expand=True)
-
-        for column in self.columns:
-            wide = column == "Description"
-            self.tree.heading(column, text=column)
-            self.tree.column(
-                column,
-                width=300 if wide else 120,
-                minwidth=150 if wide else 70,
-                stretch=wide,
-            )
-
-        for ticket in tickets:
-            self.tree.insert(
-                "",
-                "end",
-                iid=str(ticket[0]),
-                values=_ticket_values(ticket, show_creator),
-            )
-
-        for event in ("<MouseWheel>", "<Button-4>", "<Button-5>"):
-            self.tree.bind(event, lambda event: "break")
-        self.tree.bind("<Configure>", lambda event: self.tree.after(10, self.draw_lines))
-
-    def draw_lines(self):
-        for widget in self.tree.winfo_children():
-            widget.destroy()
-
-        x = 0
-        for column in self.columns[:-1]:
-            x += self.tree.column(column, "width")
-            tk.Frame(self.tree, bg=LINE, width=1).place(x=x, y=0, relheight=1)
-
-        items = self.tree.get_children()
-        box = self.tree.bbox(items[0]) if items else None
-        y = box[1] if box else ROW
-        while y < self.tree.winfo_height():
-            tk.Frame(self.tree, bg=LINE, height=1).place(
-                x=0, y=y, relwidth=1
-            )
-            y += ROW
-
-    def selected_id(self):
-        selection = self.tree.selection()
-        return int(selection[0]) if selection else None
-
-
-def build_table(parent, tickets):
-    table = TicketTable(parent, tickets)
-    table.pack(fill="both", expand=True, pady=10)
-    return table
-
-
-def _department_tickets(department_id):
-    conn = db.get_connection()
-    cursor = conn.cursor()
-    cursor.execute(
-        """
-        SELECT t.ID, t.Description, e.Name, d.Name, t.Status
-        FROM Ticket t
-        LEFT JOIN Employee e ON t.CreatorID = e.ID
-        LEFT JOIN Department d ON t.TargetDepartmentID = d.ID
-        WHERE t.TargetDepartmentID = ?
-        ORDER BY t.ID DESC
-        """,
-        (department_id,),
-    )
-    tickets = cursor.fetchall()
-    conn.close()
-    return tickets
-
-
-def _ticket_page(parent, user, tickets, title, mode):
-    clear(parent)
-    page = TicketsPage(parent, user, tickets, title, mode)
-    page.pack(fill="both", expand=True)
-    return page
-
-
-def page_mine(parent, user):
-    return _ticket_page(
-        parent,
-        user,
-        db.get_my_tickets(user["ID"]),
-        "Mes tickets",
-        "mine",
-    )
-
-
-def page_dept(parent, user):
-    return _ticket_page(
-        parent,
-        user,
-        _department_tickets(user["DepartmentID"]),
-        "Tickets du département",
-        "department",
-    )
-
-
-class TicketsPage(ttk.Frame):
-    def __init__(self, parent, user, tickets, title, mode):
+class DeptPage(ttk.Frame):
+    def __init__(self, parent, user):
         super().__init__(parent)
         self.user = user
-        self.tickets = tickets
-        self.title = title
-        self.mode = mode
+        self.is_manager = user["DeptName"] == "Management"
+        titre = "Tous les tickets" if self.is_manager else f"Tickets du département {user['DeptName']}"
+        ttk.Label(self, text=titre, font=TITRE).pack(anchor="w")
+        self.table = TicketTable(self)
+        self.table.pack(fill="x", pady=10)
+        bar = ttk.Frame(self)
+        bar.pack(anchor="w")
+        self.status = ttk.Combobox(bar, values=list(LABELS.values()),
+                                   state="readonly", width=18)
+        self.status.current(1)
+        self.status.pack(side="left")
+        ttk.Button(bar, text="Changer le statut",
+                   command=self.change).pack(side="left", padx=8)
+        self.refresh()
 
-        ttk.Label(self, text=title, font=("Segoe UI", 16, "bold")).pack(
-            anchor="w"
-        )
-        self.buttons = ttk.Frame(self)
-        self.buttons.pack(side="bottom", anchor="w", pady=10)
-        self.table = TicketTable(self, tickets, show_creator=mode != "mine")
-        self.table.pack(fill="both", expand=True, pady=10)
+    def refresh(self):
+        rows = db.get_all_tickets()
+        if not self.is_manager:
+            rows = [r for r in rows if r[3] == self.user["DeptName"]]
+        self.table.load(rows)
 
-        if mode == "mine":
-            self.add_button("Annuler le ticket", self.cancel)
-        else:
-            self.add_button(
-                "Prendre en charge",
-                lambda: self.change("In treatment"),
-            )
-            self.add_button("Terminer", lambda: self.change("Done"))
-
-    def add_button(self, text, command):
-        ttk.Button(self.buttons, text=text, command=command).pack(
-            side="left", padx=4
-        )
-
-    def selected_id(self):
-        ticket_id = self.table.selected_id()
-        if ticket_id is None:
-            messagebox.showwarning("Attention", "Sélectionnez un ticket.")
-        return ticket_id
-
-    def reload(self):
-        if self.mode == "mine":
-            page_mine(self.master, self.user)
-        else:
-            page_dept(self.master, self.user)
-
-    def cancel(self):
-        ticket_id = self.selected_id()
-        if ticket_id is None:
+    def change(self):
+        sel = self.table.selection()
+        if not sel:
+            messagebox.showwarning("Attention", "Sélectionne un ticket.")
             return
-        ticket = next((ticket for ticket in self.tickets if ticket[0] == ticket_id), None)
-        if ticket is None or ticket[4] != "Open":
-            messagebox.showwarning(
-                "Attention",
-                "Seul un ticket ouvert peut être annulé.",
-            )
-            return
-        if not messagebox.askyesno("Confirmation", "Annuler ce ticket ?"):
-            return
-        db.update_ticket_status(ticket_id, "Canceled")
-        self.reload()
-
-    def change(self, status):
-        ticket_id = self.selected_id()
-        if ticket_id is None:
-            return
-        ticket = next((ticket for ticket in self.tickets if ticket[0] == ticket_id), None)
-        if ticket is None or ticket[4] in ("Done", "Canceled"):
-            messagebox.showwarning("Attention", "Ce ticket est déjà fermé.")
-            return
-        db.update_ticket_status(ticket_id, status)
-        self.reload()
+        ticket_id = self.table.item(sel[0])["values"][0]
+        db.update_ticket_status(ticket_id, REVERSE[self.status.get()])
+        self.refresh()
 
 
 class NewTicketWindow(tk.Toplevel):
-    def __init__(self, root, user, on_done):
-        super().__init__(root)
+    def __init__(self, master, user, on_done):
+        super().__init__(master)
+        self.title("Nouveau ticket")
+        self.geometry("420x330")
+        self.transient(master)
+        self.grab_set()
         self.user = user
         self.on_done = on_done
-        self.title("Nouveau ticket")
-        self.geometry("440x440")
-        self.resizable(False, False)
-        self.configure(bg=FOND)
-        self.transient(root)
-        self.grab_set()
-
-        frame = tk.Frame(self, bg=FOND, padx=28, pady=24)
+        self.depts = {d[1]: d[0] for d in db.get_all_departments()}
+        frame = ttk.Frame(self, padding=20)
         frame.pack(fill="both", expand=True)
-        tk.Label(
-            frame,
-            text="Nouveau ticket",
-            bg=FOND,
-            fg=MARINE,
-            font=("Segoe UI", 16, "bold"),
-        ).pack(anchor="w", pady=(0, 16))
-        tk.Label(
-            frame,
-            text="Description de l'incident",
-            bg=FOND,
-            fg=MARINE,
-            font=("Segoe UI", 10, "bold"),
-        ).pack(anchor="w")
+        ttk.Label(frame, text="Description").pack(anchor="w")
+        self.text = tk.Text(frame, height=7, width=45)
+        self.text.pack(pady=5)
+        ttk.Label(frame, text="Département cible").pack(anchor="w")
+        self.combo = ttk.Combobox(frame, values=list(self.depts), state="readonly")
+        self.combo.current(0)
+        self.combo.pack(fill="x", pady=5)
+        ttk.Button(frame, text="Créer le ticket", command=self.save).pack(fill="x", pady=10)
 
-        box = tk.Frame(
-            frame,
-            bg="white",
-            highlightbackground=BORDURE,
-            highlightthickness=1,
-        )
-        box.pack(fill="x", pady=(6, 16))
-        self.description = tk.Text(
-            box,
-            height=7,
-            wrap="word",
-            relief="flat",
-            bd=0,
-            bg="white",
-            fg=MARINE,
-            font=("Segoe UI", 11),
-            insertbackground=MARINE,
-            padx=10,
-            pady=8,
-        )
-        self.description.pack(fill="x")
-
-        tk.Label(
-            frame,
-            text="Département concerné",
-            bg=FOND,
-            fg=MARINE,
-            font=("Segoe UI", 10, "bold"),
-        ).pack(anchor="w")
-        departments = db.get_all_departments()
-        self.departments = {department[1]: department[0] for department in departments}
-        self.combo = ttk.Combobox(
-            frame,
-            values=list(self.departments),
-            state="readonly",
-            font=("Segoe UI", 11),
-        )
-        if self.departments:
-            self.combo.current(0)
-        self.combo.pack(fill="x", pady=(6, 22))
-        tk.Button(
-            frame,
-            text="Envoyer",
-            command=self.submit,
-            bg=B,
-            fg="white",
-            relief="flat",
-            font=("Segoe UI", 11, "bold"),
-            cursor="hand2",
-            pady=12,
-            activebackground="#1D57A8",
-            activeforeground="white",
-        ).pack(fill="x")
-        self.description.focus_set()
-
-    def submit(self):
-        text = self.description.get("1.0", "end").strip()
-        if not text:
-            messagebox.showwarning(
-                "Attention",
-                "Écrivez une description.",
-                parent=self,
-            )
+    def save(self):
+        desc = self.text.get("1.0", "end").strip()
+        if not desc:
+            messagebox.showwarning("Attention", "La description est vide.", parent=self)
             return
-        department = self.departments.get(self.combo.get())
-        if department is None:
-            messagebox.showwarning(
-                "Attention",
-                "Sélectionnez un département.",
-                parent=self,
-            )
-            return
-        db.create_ticket(text, self.user["ID"], department)
+        db.create_ticket(desc, self.user["ID"], self.depts[self.combo.get()])
         self.destroy()
         self.on_done()
 
 
-def open_new_ticket(root, user, on_done):
-    return NewTicketWindow(root, user, on_done)
+def clear(frame):
+    for w in frame.winfo_children():
+        w.destroy()
+
+
+def build_table(parent, rows):
+    table = TicketTable(parent)
+    table.load(rows)
+    table.pack(fill="x", pady=10)
+    return table
+
+
+def page_mine(content, user):
+    clear(content)
+    ttk.Label(content, text="Mes tickets", font=TITRE).pack(anchor="w")
+    build_table(content, db.get_my_tickets(user["ID"]))
+
+
+def page_dept(content, user):
+    clear(content)
+    DeptPage(content, user).pack(fill="both", expand=True)
+
+
+def open_new_ticket(master, user, on_done):
+    NewTicketWindow(master, user, on_done)
