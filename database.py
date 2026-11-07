@@ -60,7 +60,7 @@ def seed_initial_data():
     cursor.execute("SELECT COUNT(*) FROM Employee")
     if cursor.fetchone()[0] == 0:
         employees = [
-            ("R150190", "wyam", 1),            # Finance
+            ("R150190", "wiam", 1),            # Finance
             ("R150191", "mohamed Amine", 2),   # IT
             ("R150192", "Soulaimane", 3),      # Sales
             ("R150193", "Peter", 4)            # Management (Manager)
